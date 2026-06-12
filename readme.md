@@ -12,7 +12,7 @@ The entire pipeline operates directly inside PyTorch, making it suitable for dee
 
 ---
 
-# Why Depth Clustering Torch؟
+# Why Depth Clustering Torch?
 
 *  Fully GPU-accelerated CUDA implementation
 *  Native PyTorch tensors as input/output

@@ -361,24 +361,117 @@ def remove_ground(range_img, valid, row_angles, ground_angle_thresh=math.radians
 # clustering
 # --------------------------------------------------------------------------
 
-def cluster(range_img, valid, row_alphas, col_alphas, threshold,
-            wrap=True, relabel=True, min_size=0, per_image_ids=False):
-    """Cluster a batch of range images. Returns int labels (B,H,W).
+# def cluster(range_img, valid, row_alphas, col_alphas, threshold,
+#             wrap=True, relabel=True, min_size=0, per_image_ids=False):
+#     """Cluster a batch of range images. Returns int labels (B,H,W).
 
-    Background / invalid pixels get -1. If relabel=True, component ids are made
-    consecutive per batch item starting at 0; otherwise global root indices are
-    returned. min_size>0 drops components with fewer pixels (set to -1).
+#     Background / invalid pixels get -1. If relabel=True, component ids are made
+#     consecutive per batch item starting at 0; otherwise global root indices are
+#     returned. min_size>0 drops components with fewer pixels (set to -1).
+#     """
+#     ext = _load_ext()
+#     valid = valid & (range_img > 0)
+#     labels = ext.cluster(range_img.float().contiguous(),
+#                           valid.contiguous(),
+#                           row_alphas, col_alphas,
+#                           float(threshold), bool(wrap))
+#     if min_size > 0:
+#         labels = _drop_small(labels, min_size)
+#     if relabel:
+#         labels = _relabel_consecutive(labels, per_image=per_image_ids)
+#     return labels
+def _batch_min_size(min_size, B, device):
     """
+    Convert min_size into a (B,) int64 tensor.
+
+    Accepts:
+        scalar:
+            600
+
+        sequence:
+            [150, 384, 600]
+
+        tensor:
+            tensor([150, 384, 600])
+    """
+    min_size = torch.as_tensor(
+        min_size,
+        device=device,
+        dtype=torch.long,
+    )
+
+    if min_size.numel() == 1:
+        min_size = min_size.reshape(1).expand(B)
+
+    elif min_size.dim() == 1 and min_size.numel() == B:
+        pass
+
+    else:
+        raise ValueError(
+            "min_size must be a scalar or have shape (B,), "
+            f"got shape={tuple(min_size.shape)} for B={B}"
+        )
+
+    if (min_size < 0).any():
+        raise ValueError(
+            "min_size values must be >= 0"
+        )
+
+    return min_size
+
+
+def cluster(
+    range_img,
+    valid,
+    row_alphas,
+    col_alphas,
+    threshold,
+    wrap=True,
+    relabel=True,
+    min_size=0,
+    per_image_ids=False,
+):
+    """
+    Cluster a batch of range images.
+
+    min_size may be:
+        scalar
+        or
+        per-image sequence/tensor of shape (B,)
+    """
+
     ext = _load_ext()
+
     valid = valid & (range_img > 0)
-    labels = ext.cluster(range_img.float().contiguous(),
-                          valid.contiguous(),
-                          row_alphas, col_alphas,
-                          float(threshold), bool(wrap))
-    if min_size > 0:
-        labels = _drop_small(labels, min_size)
+
+    labels = ext.cluster(
+        range_img.float().contiguous(),
+        valid.contiguous(),
+        row_alphas,
+        col_alphas,
+        float(threshold),
+        bool(wrap),
+    )
+
+    # Supports both scalar and per-image min_size.
+    min_sizes = _batch_min_size(
+        min_size,
+        B=labels.shape[0],
+        device=labels.device,
+    )
+
+    if torch.any(min_sizes > 0):
+        labels = _drop_small(
+            labels,
+            min_sizes,
+        )
+
     if relabel:
-        labels = _relabel_consecutive(labels, per_image=per_image_ids)
+        labels = _relabel_consecutive(
+            labels,
+            per_image=per_image_ids,
+        )
+
     return labels
 
 

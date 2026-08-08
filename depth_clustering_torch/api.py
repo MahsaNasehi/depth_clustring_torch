@@ -15,14 +15,24 @@ from .clustering import (
 )
 
 
+
 def cluster_disparity(disparity, fx, baseline, cx, cy, fy=None, *,
                       theta_deg=7.0, min_size=0, ground=False,
                       ground_thresh_deg=20.0):
-    """Stereo disparity -> Euclidean range (perspective) -> cluster.
+    """
+    Stereo disparity -> Euclidean range -> clustering.
 
-    disparity: (H,W) or (B,H,W) in pixels. fx, fy, cx, cy, and baseline can
-    each be a scalar shared by the batch or a tensor/sequence with shape (B,).
-    Labels come back pixel-aligned with the disparity/RGB image."""
+    disparity:
+        (H,W) or (B,H,W)
+
+    fx, fy, cx, cy, baseline:
+        scalar or shape (B,)
+
+    min_size:
+        scalar shared by the batch, or
+        tensor/list of shape (B,) containing a
+        separate minimum cluster size for each image.
+    """
     fy = fx if fy is None else fy
     range_img, valid = disparity_to_range(disparity, fx, baseline, cx, cy, fy)
     B, H, W = range_img.shape
@@ -46,6 +56,7 @@ def cluster_disparity(disparity, fx, baseline, cx, cy, fy=None, *,
     return cluster(range_img, valid, row_a, col_a,
                    threshold=math.radians(theta_deg), wrap=False,
                    relabel=True, min_size=min_size)
+
 
 
 def cluster_range_image(range_img, valid=None, *, row_angles=None, col_angles=None,
